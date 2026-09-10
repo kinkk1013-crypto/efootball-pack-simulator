@@ -1,5 +1,9 @@
 const ORIGIN = "https://efhub.com";
 
+const OPENAI_MODEL =
+  process.env.OPENAI_VISION_MODEL ||
+  "gpt-5.6-luna";
+
 function clean(s = "") {
   return s
     .replace(/<[^>]+>/g, " ")
@@ -14,13 +18,17 @@ function clean(s = "") {
 async function getHTML(url) {
   const r = await fetch(url, {
     headers: {
-      "user-agent": "Mozilla/5.0 (compatible; eFootballPackSimulator/1.0)",
-      "accept": "text/html,application/xhtml+xml"
+      "user-agent":
+        "Mozilla/5.0 (compatible; eFootballPackSimulator/1.0)",
+      "accept":
+        "text/html,application/xhtml+xml"
     }
   });
 
   if (!r.ok) {
-    throw new Error("eFHUB HTTP " + r.status);
+    throw new Error(
+      "eFHUB HTTP " + r.status
+    );
   }
 
   return await r.text();
@@ -35,65 +43,13 @@ function parseNewPlayers(html) {
     )
   ];
 
-  for (let i = 0; i < headings.length; i++) {
-    const title = clean(headings[i][1]);
-
-    const start =
-      headings[i].index +
-      headings[i][0].length;
-
-    const end =
-      i + 1 < headings.length
-        ? headings[i + 1].index
-        : html.length;
-
-    const block =
-      html.slice(start, end);
-
-    const players = [];
-    const seen = new Set();
-
-    for (
-      const m of block.matchAll(
-        /<a[^>]+href=["'][^"']*\/players\/(\d+)[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi
-      )
-    ) {
-      const id = m[1];
-      const text = clean(m[2]);
-
-      const pm = text.match(
-        /^(\d{2,3})\s*(GK|CB|LB|RB|DMF|CMF|AMF|LMF|RMF|LWF|RWF|SS|CF)\s+(.+)$/i
-      );
-
-      if (!pm) continue;
-
-      const name =
-        clean(pm[3]);
-
-      if (!name || seen.has(name)) {
-        continue;
-      }
-
-      seen.add(name);
-
-      players.push({
-        id,
-        ovr: Number(pm[1]),
-        pos: pm[2].toUpperCase(),
-        name
-      });
-    }
-
-    if (players.length) {
-      groups.push({
-        title,
-        players
-      });
-    }
-  }
-
-  return groups;
-}function releaseDateFromTitle(title) {
+  for (
+    let i = 0;
+    i < headings.length;
+    i++
+  ) {
+    const title =
+      clean(headfunction releaseDateFromTitle(title) {
   const m = title.match(
     /(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+'?(\d{2})/i
   );
@@ -105,34 +61,39 @@ function parseNewPlayers(html) {
   return `${Number(m[1])} ${m[2]} 20${m[3]}`;
 }
 
-function isPremium150Box(group) {
-  if (group.players.length !== 11) {
-    return false;
+function cardImageFromId(id) {
+  return `https://boooost.jp/img/p/${id}.webp`;
+}
+
+function textDecision(group) {
+  if (
+    group.players.length !== 11
+  ) {
+    return "REJECT";
   }
 
   const t =
     group.title.toLowerCase();
 
-  const excluded = [
+  const hardReject = [
     "potw",
     "rewards",
     "manager pack",
     "national teams selection",
     "european clubs selection",
-    "madrid chamartin b selection",
     "anticipated standouts",
     "gracias"
   ];
 
   if (
-    excluded.some(
+    hardReject.some(
       x => t.includes(x)
     )
   ) {
-    return false;
+    return "REJECT";
   }
 
-  const premiumHints = [
+  const obviousPremium = [
     "epic",
     "show time",
     "showtime",
@@ -141,77 +102,170 @@ function isPremium150Box(group) {
     "snap strike"
   ];
 
-  return premiumHints.some(
-    x => t.includes(x)
-  );
-}
-
-function packType(title) {
-  const t =
-    title.toLowerCase();
-
   if (
-    t.includes("show time") ||
-    t.includes("showtime") ||
-    t.includes("summer transfer")
+    obviousPremium.some(
+      x => t.includes(x)
+    )
   ) {
-    return "SHOW TIME";
+    return "ACCEPT";
   }
 
-  return "EPIC";
+  return "AI";
 }
 
-function cardImageFromId(id) {
-  return `https://boooost.jp/img/p/${id}.webp`;
+function getResponseText(data) {
+  if (
+    typeof data?.output_text ===
+    "string"
+  ) {
+    return data.output_text;
+  }
+
+  const pieces = [];
+
+  for (
+    const item of
+      data?.output || []
+  ) {
+    for (
+      const content of
+        item?.content || []
+    ) {
+      if (
+        content?.type ===
+          "output_text" &&
+        typeof content?.text ===
+          "string"
+      ) {
+        pieces.push(
+          content.text
+        );
+      }
+    }
+  }
+
+  return pieces.join("\n");
+}async function aiLooksPremium(group) {
+  const key =
+    process.env.OPENAI_API_KEY;
+
+  if (!key) {
+    return false;
+  }
+
+  const first3 =
+    group.players.slice(0, 3);
+
+  if (first3.length < 3) {
+    return false;
+  }
+
+  const content = [
+    {
+      type: "input_text",
+      text:
+        `You classify eFootball card releases. ` +
+        `The release title is "${group.title}". ` +
+        `Look at the THREE card images. ` +
+        `Decide whether these visually look like the three featured premium cards ` +
+        `from a 150-player Epic/Show Time style box, rather than an ordinary Selection, POTW, reward, or standard highlight release. ` +
+        `Return only PREMIUM or OTHER.`
+    },
+
+    ...first3.map(
+      p => ({
+        type: "input_image",
+        image_url:
+          cardImageFromId(p.id),
+        detail: "low"
+      })
+    )
+  ];
+
+  try {
+    const r = await fetch(
+      "https://api.openai.com/v1/responses",
+      {
+        method: "POST",
+
+        headers: {
+          "Authorization":
+            `Bearer ${key}`,
+          "Content-Type":
+            "application/json"
+        },
+
+        body: JSON.stringify({
+          model: OPENAI_MODEL,
+
+          input: [
+            {
+              role: "user",
+              content
+            }
+          ],
+
+          reasoning: {
+            effort: "low"
+          },
+
+          max_output_tokens: 20
+        })
+      }
+    );
+
+    if (!r.ok) {
+      console.warn(
+        "OpenAI vision HTTP",
+        r.status,
+        await r.text()
+      );
+
+      return false;
+    }
+
+    const data =
+      await r.json();
+
+    const answer =
+      getResponseText(data)
+        .trim()
+        .toUpperCase();
+
+    return answer.startsWith(
+      "PREMIUM"
+    );async function choosePremiumGroups(groups) {
+  const chosen = [];
+  const aiCandidates = [];
+
+  for (const group of groups) {
+    if (chosen.length >= 3) break;
+
+    const decision =
+      textDecision(group);
+
+    if (decision === "ACCEPT") {
+      chosen.push(group);
+    } else if (decision === "AI") {
+      aiCandidates.push(group);
+    }
+  }
+
+  for (const group of aiCandidates) {
+    if (chosen.length >= 3) break;
+
+    const isPremium =
+      await aiLooksPremium(group);
+
+    if (isPremium) {
+      chosen.push(group);
+    }
+  }
+
+  return chosen.slice(0, 3);
 }
 
-function toPack(group) {
-  const type =
-    packType(group.title);
-
-  const cardType =
-    type === "SHOW TIME"
-      ? "ShowTime"
-      : "Epic";
-
-  return {
-    date:
-      releaseDateFromTitle(
-        group.title
-      ),
-
-    type,
-
-    title:
-      group.title.replace(
-        /\s+\d{1,2}\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+'?\d{2}$/i,
-        ""
-      ),
-
-    mains:
-      group.players
-        .slice(0, 3)
-        .map(player => ({
-          id: player.id,
-          name: player.name,
-          pos: player.pos,
-          ovr: player.ovr,
-          type: cardType,
-          img: cardImageFromId(
-            player.id
-          )
-        })),
-
-    highlights:
-      group.players
-        .slice(3, 11)
-        .map(player => [
-          player.name,
-          player.pos,
-          player.ovr
-        ])
-  };
-}export default async function handler(
+export default async function handler(
   req,
   res
 ) {
@@ -227,15 +281,17 @@ function toPack(group) {
     const groups =
       parseNewPlayers(html);
 
+    const selected =
+      await choosePremiumGroups(
+        groups
+      );
+
     const packs =
-      groups
-        .filter(isPremium150Box)
-        .slice(0, 3)
-        .map(toPack);
+      selected.map(toPack);
 
     res.setHeader(
       "Cache-Control",
-      "s-maxage=300, stale-while-revalidate=600"
+      "s-maxage=900, stale-while-revalidate=1800"
     );
 
     return res
@@ -246,7 +302,15 @@ function toPack(group) {
         source:
           "eFHUB /new-players",
         imageSource:
-          "boooost player-id cards"
+          "boooost player-id cards",
+        aiVision:
+          Boolean(
+            process.env.OPENAI_API_KEY
+          ),
+        aiModel:
+          process.env.OPENAI_API_KEY
+            ? OPENAI_MODEL
+            : null
       });
 
   } catch (error) {
@@ -256,7 +320,12 @@ function toPack(group) {
         packs: [],
         checkedAt,
         source: "eFHUB",
-        error: String(error)
+        aiVision:
+          Boolean(
+            process.env.OPENAI_API_KEY
+          ),
+        error:
+          String(error)
       });
   }
 }
