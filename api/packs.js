@@ -11,15 +11,6 @@ function clean(s = "") {
     .trim();
 }
 
-function decodeHtml(s = "") {
-  return s
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\\u002F/g, "/")
-    .replace(/\\\//g, "/");
-}
-
 async function getHTML(url) {
   const r = await fetch(url, {
     headers: {
@@ -28,28 +19,36 @@ async function getHTML(url) {
     }
   });
 
-  if (!r.ok) throw new Error("eFHUB HTTP " + r.status);
+  if (!r.ok) {
+    throw new Error("eFHUB HTTP " + r.status);
+  }
+
   return await r.text();
 }
 
 function parseNewPlayers(html) {
   const groups = [];
+
   const headings = [
-    ...html.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/gi)
+    ...html.matchAll(
+      /<h2[^>]*>([\s\S]*?)<\/h2>/gi
+    )
   ];
 
   for (let i = 0; i < headings.length; i++) {
     const title = clean(headings[i][1]);
 
     const start =
-      headings[i].index + headings[i][0].length;
+      headings[i].index +
+      headings[i][0].length;
 
     const end =
       i + 1 < headings.length
         ? headings[i + 1].index
         : html.length;
 
-    const block = html.slice(start, end);
+    const block =
+      html.slice(start, end);
 
     const players = [];
     const seen = new Set();
@@ -68,9 +67,12 @@ function parseNewPlayers(html) {
 
       if (!pm) continue;
 
-      const name = clean(pm[3]);
+      const name =
+        clean(pm[3]);
 
-      if (!name || seen.has(name)) continue;
+      if (!name || seen.has(name)) {
+        continue;
+      }
 
       seen.add(name);
 
@@ -96,7 +98,9 @@ function parseNewPlayers(html) {
     /(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+'?(\d{2})/i
   );
 
-  if (!m) return "Latest";
+  if (!m) {
+    return "Latest";
+  }
 
   return `${Number(m[1])} ${m[2]} 20${m[3]}`;
 }
@@ -106,7 +110,8 @@ function isPremium150Box(group) {
     return false;
   }
 
-  const t = group.title.toLowerCase();
+  const t =
+    group.title.toLowerCase();
 
   const excluded = [
     "potw",
@@ -116,11 +121,14 @@ function isPremium150Box(group) {
     "european clubs selection",
     "madrid chamartin b selection",
     "anticipated standouts",
-    "english league selection 13 aug",
     "gracias"
   ];
 
-  if (excluded.some(x => t.includes(x))) {
+  if (
+    excluded.some(
+      x => t.includes(x)
+    )
+  ) {
     return false;
   }
 
@@ -139,7 +147,8 @@ function isPremium150Box(group) {
 }
 
 function packType(title) {
-  const t = title.toLowerCase();
+  const t =
+    title.toLowerCase();
 
   if (
     t.includes("show time") ||
@@ -152,127 +161,8 @@ function packType(title) {
   return "EPIC";
 }
 
-function getAttr(tag, attr) {
-  const m = tag.match(
-    new RegExp(
-      attr + String.raw`\s*=\s*["']([^"']+)["']`,
-      "i"
-    )
-  );
-
-  return m
-    ? decodeHtml(m[1])
-    : "";
-}
-
-function absolutizeImage(src) {
-  if (!src) return null;
-
-  if (src.startsWith("//")) {
-    return "https:" + src;
-  }
-
-  if (src.startsWith("/")) {
-    return ORIGIN + src;
-  }
-
-  if (/^https?:\/\//i.test(src)) {
-    return src;
-  }
-
-  return null;
-}
-
-function parsePlayerCardImage(
-  html,
-  playerName
-) {
-  const imgs = [
-    ...html.matchAll(/<img\b[^>]*>/gi)
-  ].map(m => m[0]);
-
-  for (const tag of imgs) {
-    const alt =
-      clean(
-        getAttr(tag, "alt")
-      ).toLowerCase();
-
-    if (
-      alt.includes("player card") ||
-      (
-        alt.includes(
-          playerName.toLowerCase()
-        ) &&
-        alt.includes("card")
-      )
-    ) {
-      const src =
-        getAttr(tag, "src") ||
-        getAttr(tag, "data-src");
-
-      if (src) {
-        return absolutizeImage(src);
-      }
-
-      const srcset =
-        getAttr(tag, "srcset");
-
-      if (srcset) {
-        const first =
-          srcset
-            .split(",")[0]
-            .trim()
-            .split(/\s+/)[0];
-
-        const url =
-          absolutizeImage(first);
-
-        if (url) {
-          return url;
-        }
-      }
-    }
-  }
-
-  const escaped =
-    playerName.replace(
-      /[.*+?^${}()|[\]\\]/g,
-      "\\$&"
-    );
-
-  const around =
-    new RegExp(
-      `<img[^>]{0,1200}alt=["'][^"']*(?:${escaped}|player card)[^"']*["'][^>]*>`,
-      "i"
-    ).exec(html);
-
-  if (around) {
-    const src =
-      getAttr(around[0], "src") ||
-      getAttr(around[0], "data-src");
-
-    if (src) {
-      return absolutizeImage(src);
-    }
-  }
-
-  return null;
-}async function fetchPlayerCardImage(
-  player
-) {
-  try {
-    const html =
-      await getHTML(
-        `${ORIGIN}/players/${player.id}`
-      );
-
-    return parsePlayerCardImage(
-      html,
-      player.name
-    );
-  } catch {
-    return null;
-  }
+function cardImageFromId(id) {
+  return `https://boooost.jp/img/p/${id}.webp`;
 }
 
 function toPack(group) {
@@ -307,7 +197,9 @@ function toPack(group) {
           pos: player.pos,
           ovr: player.ovr,
           type: cardType,
-          img: null
+          img: cardImageFromId(
+            player.id
+          )
         })),
 
     highlights:
@@ -319,30 +211,7 @@ function toPack(group) {
           player.ovr
         ])
   };
-}
-
-async function addMainPlayerImages(
-  packs
-) {
-  const jobs = [];
-
-  for (const pack of packs) {
-    for (const player of pack.mains) {
-      jobs.push(
-        fetchPlayerCardImage(
-          player
-        ).then(img => {
-          player.img = img;
-        })
-      );
-    }
-  }
-
-  await Promise.all(jobs);
-  return packs;
-}
-
-export default async function handler(
+}export default async function handler(
   req,
   res
 ) {
@@ -358,35 +227,36 @@ export default async function handler(
     const groups =
       parseNewPlayers(html);
 
-    let packs =
+    const packs =
       groups
         .filter(isPremium150Box)
         .slice(0, 3)
         .map(toPack);
-
-    packs =
-      await addMainPlayerImages(
-        packs
-      );
 
     res.setHeader(
       "Cache-Control",
       "s-maxage=300, stale-while-revalidate=600"
     );
 
-    return res.status(200).json({
-      packs,
-      checkedAt,
-      source:
-        "eFHUB /new-players + /players"
-    });
+    return res
+      .status(200)
+      .json({
+        packs,
+        checkedAt,
+        source:
+          "eFHUB /new-players",
+        imageSource:
+          "boooost player-id cards"
+      });
 
   } catch (error) {
-    return res.status(200).json({
-      packs: [],
-      checkedAt,
-      source: "eFHUB",
-      error: String(error)
-    });
+    return res
+      .status(200)
+      .json({
+        packs: [],
+        checkedAt,
+        source: "eFHUB",
+        error: String(error)
+      });
   }
 }
