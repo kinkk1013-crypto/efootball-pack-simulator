@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>eFootball Pack Simulator</title>
+<style>
+:root{
+ --bg:#06101a;--panel:#0b1724;--line:#30465c;--text:#f4f7fb;--muted:#8fa2b5;
+ --accent:#4e8d00;--epic:#7e38be;--show:#179bca
+}
+*{box-sizing:border-box}
+body{margin:0;background:#06101a;color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+button{font:inherit}
+.wrap{max-width:960px;margin:auto;padding:14px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}
+.brand{font-weight:950;font-size:clamp(22px,4vw,34px)}
+.sub{color:var(--muted);font-size:12px}
+.balance{border:1px solid var(--line);border-radius:13px;padding:8px 12px;background:#0c1926;font-weight:900}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.tab{background:#0d1d2c;color:white;border:1px solid var(--line);border-radius:16px;padding:11px;text-align:left;cursor:pointer}
+.tab.active{border-color:#6e9900;box-shadow:inset 0 0 0 1px #6e9900}
+.tab .date{font-size:10px;color:var(--muted)}
+.tab .title{font-weight:900;margin-top:4px}
+.tab .names{font-size:10px;color:#7f91a2;margin-top:4px;line-height:1.4}
+.panel{background:#07111d;border:1px solid var(--line);border-radius:20px;padding:16px}
+.kicker{font-size:11px;color:#92a4b8;letter-spacing:.09em}
+h2{font-size:clamp(25px,4vw,36px);margin:8px 0 3px}
+.meta{color:var(--muted);font-size:13px;line-height:1.5}
+.heroes{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}
+.hero{min-width:0;border-radius:16px;padding:8px;background:linear-gradient(180deg,#251235,#0c1320);border:1px solid var(--epic)}
+.hero.showtime{background:linear-gradient(180deg,#0a3548,#091521);border-color:var(--show)}
+.hero-img{width:100%;aspect-ratio:236/337;object-fit:contain;display:block;border-radius:8px;background:#08101a}
+.bundle-crop{position:relative;width:100%;aspect-ratio:236/337;overflow:hidden;border-radius:8px;background:#08101a}
+.bundle-crop img{position:absolute;max-width:none;width:322%;height:auto;left:0;top:0}
+.bundle-crop.makelele img{transform:translate(-0.4%,-30.3%)}
+.bundle-crop.cech img{transform:translate(-34.48%,-30.3%)}
+.bundle-crop.stam img{transform:translate(-68.65%,-30.3%)}
+.type{font-size:9px;font-weight:900;color:#d8b45b;margin-top:5px}
+.showtime .type{color:#4bd5ff}
+.name{font-size:15px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+.pos{font-size:11px;color:var(--muted);margin-top:2px}
+.stats{display:flex;justify-content:space-between;align-items:end;margin-top:18px}
+.big{font-size:42px;font-weight:950;line-height:1}
+.small{font-size:12px;color:var(--muted)}
+.progress{height:9px;border-radius:99px;background:#102235;overflow:hidden;margin-top:10px}
+.progress>div{height:100%;background:linear-gradient(90deg,#396d00,#006e9b)}
+.actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:16px}
+.btn{min-height:58px;border-radius:14px;border:1px solid var(--line);background:#172b3d;color:white;font-weight:950;cursor:pointer}
+.btn.primary{background:#4a8200;border-color:#4a8200}
+.btn:disabled{opacity:.4}
+.status{text-align:center;color:#8ea0b4;font-size:13px;min-height:20px;margin-top:13px}.sync{font-size:11px;color:#72869a;margin-top:5px;text-align:center}
+
+/* Popup */
+.modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:14px;background:rgba(0,0,0,.78);z-index:999}
+.modal.show{display:flex}
+.popup{width:min(520px,94vw);background:#07111d;border:2px solid #34577a;border-radius:22px;padding:16px;text-align:center}
+.popup-title{font-size:17px;font-weight:950;letter-spacing:.08em}
+.nohit{font-size:100px;line-height:1;color:#ff6767;font-weight:950;padding:28px 0 8px}
+.nohit-text{color:#a0afbe;margin-bottom:10px}
+.hit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}
+.hit-card{min-width:0;border:1px solid var(--epic);border-radius:14px;background:linear-gradient(180deg,#28153a,#0e1320);padding:6px}
+.hit-card.showtime{border-color:var(--show);background:linear-gradient(180deg,#0b3a4f,#091521)}
+.hit-card .hero-img,.hit-card .bundle-crop{width:100%;aspect-ratio:236/337}
+.hit-name{font-size:11px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:5px}
+.hit-meta{font-size:9px;color:var(--muted);margin-top:2px}
+.popbtn{width:100%;min-height:54px;border-radius:13px;font-weight:950;color:white;margin-top:10px;cursor:pointer}
+.confirm{border:0;background:#3f7800;font-size:20px}
+.more{border:2px solid #1daae8;background:#083b6c;font-size:18px}
+.more span{display:block;font-size:14px;margin-top:2px}
+@media(max-width:680px){
+ .tabs{grid-template-columns:1fr}
+ .heroes{gap:6px}
+ .hero{padding:5px}
+ .name{font-size:11px}
+ .pos{font-size:9px}
+ .actions{gap:6px}
+ .btn{min-height:54px;font-size:16px}
+ .hit-grid{gap:6px}
+ .popup{padding:12px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <div class="brand">eFootball Pack Simulator</div>
+      <div class="sub">Epic / Show Time 3팩</div>
+    </div>
+    <div class="balance">e ∞</div>
+  </div>
+
+  <div id="tabs" class="tabs"></div>
+
+  <section class="panel">
+    <div id="kicker" class="kicker"></div>
+    <h2 id="packTitle"></h2>
+    <div id="packMeta" class="meta"></div>
+    <div id="heroes" class="heroes"></div>
+
+    <div class="stats">
+      <div><div class="small">남은 선수</div><div class="big"><span id="remain">150</span><span class="small"> / 150</span></div></div>
+      <div style="text-align:right"><div class="small">남은 메인 카드</div><div class="big" style="font-size:30px"><span id="mainRemain">3</span> / 3</div></div>
+    </div>
+    <div class="progress"><div id="bar" style="width:100%"></div></div>
+
+    <div class="actions">
+      <button id="draw1" class="btn">1명 계약<br><span class="small">100</span></button>
+      <button id="draw10" class="btn primary">10명 계약<br><span class="small" style="color:#d7e4bc">900</span></button>
+      <button id="reset" class="btn">BOX 리셋</button>
+    </div>
+    <div id="status" class="status">팩을 선택하고 선수를 뽑아보세요.</div>
+    <div id="sync" class="sync">EFHub 자동 업데이트 확인 중...</div>
+  </section>
+</div>
+
+<div id="modal" class="modal" role="dialog" aria-modal="true">
+  <div class="popup">
+    <div id="popupTitle" class="popup-title">CONTRACT RESULT</div>
+    <div id="popupBody"></div>
+    <button id="confirm" class="popbtn confirm" type="button">확인</button>
+    <button id="more10" class="popbtn more" type="button">추가 10명 계약하기<span>900</span></button>
+  </div>
+</div>
+
+<script>
+const guardianBundle="https://cdn.efhub.com/external-assets/amadeusz-panel/260907_2/260907_2_1.webp";
+
+let packs=[
+ {
+  date:"7 Sep 2026", type:"EPIC", title:"English League Guardians",
+  mains:[
+   {name:"Petr Čech",pos:"GK",ovr:104,type:"Epic",bundle:guardianBundle,crop:"cech"},
+   {name:"Jaap Stam",pos:"CB",ovr:103,type:"Epic",bundle:guardianBundle,crop:"stam"},
+   {name:"Claude Makélélé",pos:"DMF",ovr:102,type:"Epic",bundle:guardianBundle,crop:"makelele"}
+  ],
+  highlights:[
+   ["Abdukodir Khusanov","CB",83],["Murillo","CB",82],["Rodrigo Bentancur","DMF",81],["Conor Bradley","RB",81],
+   ["Jarrad Branthwaite","CB",81],["Tyler Adams","DMF",81],["Ian Maatsen","LB",80],["Ryan Sessegnon","LB",79]
+  ]
+ },
+ {
+  date:"3 Sep 2026", type:"EPIC", title:"Snap Strike",
+  mains:[
+   {name:"Andriy Shevchenko",pos:"CF",ovr:88,type:"Epic",img:"https://boooost.jp/img/p/88045755964138.webp"},
+   {name:"Francesco Totti",pos:"CF/SS",ovr:87,type:"Epic",img:"https://boooost.jp/img/p/88045755960771.webp"},
+   {name:"Adriano",pos:"CF",ovr:86,type:"Epic",img:"https://boooost.jp/img/p/88045755960841.webp"}
+  ],
+  highlights:[
+   ["Mattia Zaccagni","LWF",82],["Andrea Pinamonti","CF",81],["Lorenzo Colombo","CF",80],["Federico Bernardeschi","RWF",80],
+   ["Arkadiusz Milik","CF",79],["Alisson Santos","LWF",79],["Lameck Banda","LWF",78],["John Yeboah","SS",78]
+  ]
+ },
+ {
+  date:"10 Sep 2026", type:"SHOW TIME", title:"Summer Transfer vol.3",
+  mains:[
+   {name:"Ronald Araújo",pos:"CB",ovr:86,type:"ShowTime",img:"https://pesdb.net/assets/img/card/f106786040448448.png"},
+   {name:"John Stones",pos:"CB",ovr:85,type:"ShowTime",img:"https://pesdb.net/assets/img/card/f106786040363689.png"},
+   {name:"Maghnes Akliouche",pos:"RWF",ovr:85,type:"ShowTime",img:"https://pesdb.net/assets/img/card/f106786040464076.png"}
+  ],
+  highlights:[
+   ["Summer Transfer Highlight 01","CMF",82],["Summer Transfer Highlight 02","CB",82],
+   ["Summer Transfer Highlight 03","RWF",81],["Summer Transfer Highlight 04","DMF",81],
+   ["Summer Transfer Highlight 05","LB",80],["Summer Transfer Highlight 06","CF",80],
+   ["Summer Transfer Highlight 07","GK",79],["Summer Transfer Highlight 08","AMF",79]
+  ]
+ }
+];
+
+let current=0;
+let pool=[];
+
+const $=s=>document.querySelector(s);
+
+function visual(p){
+ if(p.bundle){
+  return `<div class="bundle-crop ${p.crop}"><img src="${p.bundle}" alt="${p.name}"></div>`;
+ }
+ if(p.img){
+  return `<img class="hero-img" src="${p.img}" alt="${p.name}" onerror="this.style.opacity=.15">`;
+ }
+ return `<div class="hero-img"></div>`;
+}
+
+function buildPool(){
+ const p=packs[current];
+ pool=[
+   ...p.mains.map(x=>({...x})),
+   ...p.highlights.map(x=>({name:x[0],pos:x[1],ovr:x[2],type:"Highlight"})),
+   ...Array.from({length:139},(_,i)=>({name:`Other active player ${String(i+1).padStart(3,"0")}`,pos:"—",ovr:null,type:"Active"}))
+ ];
+}
+
+function renderTabs(){
+ $("#tabs").innerHTML=packs.map((p,i)=>`
+  <button class="tab ${i===current?"active":""}" data-i="${i}" type="button">
+    <div class="date">${p.date} · ${p.type}</div>
+    <div class="title">${p.title}</div>
+    <div class="names">${p.mains.map(x=>x.name).join(" · ")}</div>
+  </button>`).join("");
+ document.querySelectorAll(".tab").forEach(btn=>{
+   btn.addEventListener("click",()=>{
+     current=Number(btn.dataset.i);
+     buildPool();
+     render();
+     $("#status").textContent="BOX가 150명으로 리셋되었습니다.";
+   });
+ });
+}
+
+function render(){
+ renderTabs();
+ const p=packs[current];
+ $("#kicker").textContent=`${p.date} · ${p.type}`;
+ $("#packTitle").textContent=p.title;
+ $("#packMeta").textContent=`${p.type==="EPIC"?"Epic":"Show Time"} 3 · Highlight 8 · Other active players 139 · Total 150`;
+ $("#heroes").innerHTML=p.mains.map(x=>`
+  <div class="hero ${x.type==="ShowTime"?"showtime":""}">
+    ${visual(x)}
+    <div class="type">${x.type.toUpperCase()}</div>
+    <div class="name">${x.name}</div>
+    <div class="pos">${x.ovr} · ${x.pos}</div>
+  </div>`).join("");
+ updateStats();
+}
+
+function updateStats(){
+ $("#remain").textContent=pool.length;
+ $("#mainRemain").textContent=pool.filter(x=>x.type==="Epic"||x.type==="ShowTime").length;
+ $("#bar").style.width=`${pool.length/150*100}%`;
+ $("#draw1").disabled=pool.length===0;
+ $("#draw10").disabled=pool.length===0;
+ $("#more10").disabled=pool.length===0;
+}
+
+function draw(n){
+ const out=[];
+ const count=Math.min(n,pool.length);
+ for(let i=0;i<count;i++){
+   const idx=Math.floor(Math.random()*pool.length);
+   out.push(pool.splice(idx,1)[0]);
+ }
+ updateStats();
+ showResult(out);
+}
+
+function showResult(players){
+ const hits=players.filter(x=>x.type==="Epic"||x.type==="ShowTime");
+ $("#popupTitle").textContent=hits.length?"MAIN PLAYER HIT!":"CONTRACT RESULT";
+ if(hits.length===0){
+   $("#popupBody").innerHTML=`<div class="nohit">✕</div><div class="nohit-text">메인 선수 없음</div>`;
+   $("#status").textContent=`메인 선수 없음 · 남은 선수 ${pool.length}명`;
+ }else{
+   $("#popupBody").innerHTML=`<div class="hit-grid">${hits.map(p=>`
+    <div class="hit-card ${p.type==="ShowTime"?"showtime":""}">
+      ${visual(p)}
+      <div class="hit-name">${p.name}</div>
+      <div class="hit-meta">${p.type} · ${p.pos} · ${p.ovr}</div>
+    </div>`).join("")}</div>`;
+   $("#status").textContent=`🔥 ${hits.map(x=>x.name).join(", ")} 획득!`;
+ }
+ $("#modal").classList.add("show");
+}
+
+$("#draw1").addEventListener("click",()=>draw(1));
+$("#draw10").addEventListener("click",()=>draw(10));
+$("#reset").addEventListener("click",()=>{
+ buildPool(); render(); $("#status").textContent="BOX가 150명으로 리셋되었습니다.";
+});
+$("#confirm").addEventListener("click",()=>$("#modal").classList.remove("show"));
+$("#more10").addEventListener("click",()=>{
+ $("#modal").classList.remove("show");
+ draw(10);
+});
+$("#modal").addEventListener("click",e=>{
+ if(e.target.id==="modal") $("#modal").classList.remove("show");
+});
+
+
+const AUTO_UPDATE_INTERVAL = 15 * 60 * 1000;
+
+function normalizeRemotePack(p){
+  if(!p || !Array.isArray(p.mains) || p.mains.length < 3) return null;
+  const type = String(p.type || "").toUpperCase().includes("SHOW") ? "SHOW TIME" : "EPIC";
+  return {
+    date: p.date || "Latest",
+    type,
+    title: p.title || "Latest Pack",
+    mains: p.mains.slice(0,3).map(x=>({
+      name:x.name || "Unknown",
+      pos:x.pos || "—",
+      ovr:Number.isFinite(Number(x.ovr)) ? Number(x.ovr) : null,
+      type:type==="SHOW TIME" ? "ShowTime" : "Epic",
+      img:x.img || null
+    })),
+    highlights:(p.highlights || []).slice(0,8).map(x=>[
+      x.name || x[0] || "Highlight Player",
+      x.pos || x[1] || "—",
+      Number(x.ovr || x[2]) || null
+    ])
+  };
+}
+
+async function refreshFromEFHub(silent=false){
+  const sync=$("#sync");
+  try{
+    if(!silent) sync.textContent="EFHub 최신 팩 확인 중...";
+    const r=await fetch("/api/packs",{cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const data=await r.json();
+    const remote=(data.packs||[]).map(normalizeRemotePack).filter(Boolean).slice(0,3);
+
+    if(remote.length===3){
+      const before=JSON.stringify(packs.map(p=>[p.title,p.date]));
+      const after=JSON.stringify(remote.map(p=>[p.title,p.date]));
+      if(before!==after){
+        packs=remote;
+        current=0;
+        buildPool();
+        render();
+        $("#status").textContent="새 Epic / Show Time 팩으로 자동 업데이트되었습니다.";
+      }
+      const t=data.checkedAt ? new Date(data.checkedAt).toLocaleString("ko-KR") : new Date().toLocaleString("ko-KR");
+      sync.textContent=`EFHub 자동 업데이트 ON · 최근 확인 ${t}`;
+    }else{
+      sync.textContent="EFHub 자동 업데이트 ON · 새 팩 없음 / 기존 데이터 유지";
+    }
+  }catch(e){
+    sync.textContent="EFHub 연결 실패 · 기존 팩 데이터로 계속 사용";
+    console.warn("Auto update failed:",e);
+  }
+}
+
+buildPool();
+render();
+refreshFromEFHub(false);
+setInterval(()=>refreshFromEFHub(true),AUTO_UPDATE_INTERVAL);
+</script>
+</body>
+</html>
